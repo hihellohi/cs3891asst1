@@ -143,6 +143,9 @@ int maths (int data1, char **data2)
         /* create a lock for the counter */
 
         counter_lock = lock_create("counter");
+        if (counter_lock == NULL) {
+                panic("maths: counter lock create failed");
+        }
 
         /*
          * Start NADDERS adder() threads.
