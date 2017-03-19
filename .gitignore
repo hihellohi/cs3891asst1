@@ -5,6 +5,8 @@ kern/compile/*
 user/testbin/randcall/calls.c
 TAGS
 .svn/*
+tags
+cscope.out
 
 # Prerequisites
 *.d
