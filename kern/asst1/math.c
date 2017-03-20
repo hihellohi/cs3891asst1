@@ -8,8 +8,8 @@
 
 
 enum {
-        NADDERS = 10,        /* the number of adder threads */
-        NADDS   = 10000, /* the number of overall increments to perform */
+	NADDERS = 10,        /* the number of adder threads */
+	NADDS   = 10000, /* the number of overall increments to perform */
 };
 
 
@@ -33,6 +33,7 @@ unsigned long int adder_counters[NADDERS];
 
 /* We use a semaphore to wait for adder() threads to finish */
 struct semaphore *finished;
+struct lock *adding;
 
 
 /*
@@ -66,40 +67,43 @@ struct semaphore *finished;
 
 static void adder(void * unusedpointer, unsigned long addernumber)
 {
-        unsigned long int a, b;
-        int flag = 1;
+	unsigned long int a, b;
+	int flag = 1;
 
-        /*
-         * Avoid unused variable warnings.
-         */
-        (void) unusedpointer; /* remove this line if variable is used */
+	/*
+	 * Avoid unused variable warnings.
+	 */
+	(void) unusedpointer; /* remove this line if variable is used */
 
-        while (flag) {
-                /* loop doing increments until we achieve the overall number
-                   of increments */
+	while (flag) {
+		/* loop doing increments until we achieve the overall number
+		   of increments */
 
-                a = counter;
-                if (a < NADDS) {
-                        counter = counter + 1;
-                        b = counter;
+		lock_acquire(adding);
+		a = counter;
+		if (a < NADDS) {
+			counter = counter + 1;
+			b = counter;
+			lock_release(adding);
 
-                        /* count the number of increments we perform  for statistics */
-                        adder_counters[addernumber]++;
+			/* count the number of increments we perform  for statistics */
+			adder_counters[addernumber]++;
 
-                        /* check we are getting sane results */
-                        if (a + 1 != b) {
-                                kprintf("In thread %ld, %ld + 1 == %ld?\n",
-                                        addernumber, a, b) ;
-                        }
-                } else {
-                        flag = 0;
-                }
-        }
+			/* check we are getting sane results */
+			if (a + 1 != b) {
+				kprintf("In thread %ld, %ld + 1 == %ld?\n",
+						addernumber, a, b) ;
+			}
+		} else {
+			flag = 0;
+			lock_release(adding);
+		}
+	}
 
-        /* signal the main thread we have finished and then exit */
-        V(finished);
+	/* signal the main thread we have finished and then exit */
+	V(finished);
 
-        thread_exit();
+	thread_exit();
 }
 
 /*
@@ -115,77 +119,82 @@ static void adder(void * unusedpointer, unsigned long addernumber)
 
 int maths (int data1, char **data2)
 {
-        int index, error;
-        unsigned long int sum;
+	int index, error;
+	unsigned long int sum;
 
-        /*
-         * Avoid unused variable warnings.
-         */
-        (void) data1;
-        (void) data2;
+	/*
+	 * Avoid unused variable warnings.
+	 */
+	(void) data1;
+	(void) data2;
 
-        /* create a semaphore to allow main thread to wait on workers */
+	/* create a semaphore to allow main thread to wait on workers */
 
-        finished = sem_create("finished", 0);
+	finished = sem_create("finished", 0);
 
-        if (finished == NULL) {
-                panic("maths: sem create failed");
-        }
+	if (finished == NULL) {
+		panic("maths: sem create failed");
+	}
 
-        /*
-         * ********************************************************************
-         * INSERT ANY INITIALISATION CODE YOU REQUIRE HERE
-         * ********************************************************************
-         */
+	/*
+	 * ********************************************************************
+	 * INSERT ANY INITIALISATION CODE YOU REQUIRE HERE
+	 * ********************************************************************
+	 */
 
-
-        /*
-         * Start NADDERS adder() threads.
-         */
-
-        kprintf("Starting %d adder threads\n", NADDERS);
-
-        for (index = 0; index < NADDERS; index++) {
-
-                error = thread_fork("adder thread", NULL, &adder, NULL, index);
-
-                /*
-                 * panic() on error.
-                 */
-
-                if (error) {
-                        panic("adder: thread_fork failed: %s\n",
-                              strerror(error));
-                }
-        }
+	adding = lock_create("adder");
+	if(adding == NULL) panic("maths: lock create failed");
 
 
-        /* Wait until the adder threads complete */
 
-        for (index = 0; index < NADDERS; index++) {
-                P(finished);
-        }
+	/*
+	 * Start NADDERS adder() threads.
+	 */
 
-        kprintf("Adder threads performed %ld adds\n", counter);
+	kprintf("Starting %d adder threads\n", NADDERS);
 
-        /* Print out some statistics */
-        sum = 0;
-        for (index = 0; index < NADDERS; index++) {
-                sum += adder_counters[index];
-                kprintf("Adder %d performed %ld increments.\n", index,
-                        adder_counters[index]);
-        }
-        kprintf("The adders performed %ld increments overall\n", sum);
+	for (index = 0; index < NADDERS; index++) {
 
-        /*
-         * **********************************************************************
-         * INSERT ANY CLEANUP CODE YOU REQUIRE HERE
-         * **********************************************************************
-         */
+		error = thread_fork("adder thread", NULL, &adder, NULL, index);
+
+		/*
+		 * panic() on error.
+		 */
+
+		if (error) {
+			panic("adder: thread_fork failed: %s\n",
+					strerror(error));
+		}
+	}
 
 
-        /* clean up the semaphore we allocated earlier */
-        sem_destroy(finished);
-        return 0;
+	/* Wait until the adder threads complete */
+
+	for (index = 0; index < NADDERS; index++) {
+		P(finished);
+	}
+
+	kprintf("Adder threads performed %ld adds\n", counter);
+
+	/* Print out some statistics */
+	sum = 0;
+	for (index = 0; index < NADDERS; index++) {
+		sum += adder_counters[index];
+		kprintf("Adder %d performed %ld increments.\n", index,
+				adder_counters[index]);
+	}
+	kprintf("The adders performed %ld increments overall\n", sum);
+
+	/*
+	 * **********************************************************************
+	 * INSERT ANY CLEANUP CODE YOU REQUIRE HERE
+	 * **********************************************************************
+	 */
+
+
+	/* clean up the semaphore we allocated earlier */
+	lock_destroy(adding);
+	sem_destroy(finished);
+	return 0;
 }
 
