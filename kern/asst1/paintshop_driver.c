@@ -76,7 +76,21 @@ static void customer(void *unusedpointer, unsigned long customernum)
                 for (j = 0; j < PAINT_COMPLEXITY; j++) {
                         order.requested_tints[j] = 0;
                 }
-                order.requested_tints[0] = RED;
+                if (i % 3 == 0) {
+                    order.requested_tints[0] = RED;
+                    order.requested_tints[1] = BLUE;
+                    order.requested_tints[2] = ORANGE;
+                }
+                else if (i % 3 == 1) {
+                    order.requested_tints[0] = MAGENTA;
+                    order.requested_tints[1] = RED;
+                    order.requested_tints[2] = BROWN;
+                }
+                else if (i % 3 == 2) {
+                    order.requested_tints[0] = MAGENTA;
+                    order.requested_tints[1] = BLUE;
+                    order.requested_tints[2] = RED;
+                }
 
 
                 /* order the paint, this blocks until the order is filled */
