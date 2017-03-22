@@ -111,7 +111,7 @@ void fill_order(struct paintorder *order)
             int tint = order->requested_tints[i];
             if (tint > NCOLOURS)
                     panic("Unknown colour");
-            if (tint > 0)
+            if (tint > 0 && !lock_do_i_hold(tint_locks[tint - 1]))
                 lock_acquire(tint_locks[tint - 1]);
         }
         lock_release(mix_lock);
@@ -121,7 +121,7 @@ void fill_order(struct paintorder *order)
 
         for (i = 0; i < PAINT_COMPLEXITY; i++) {
             int tint = order->requested_tints[i];
-            if (tint > 0)
+            if (tint > 0 && lock_do_i_hold(tint_locks[tint - 1]))
                 lock_release(tint_locks[tint - 1]);
         }
 }
