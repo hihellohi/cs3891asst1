@@ -55,6 +55,6 @@ extern void mix(struct paintorder *);
  */ 
 
 
-#define NCUSTOMERS 10     /* The number of customers painting today*/
-#define NPAINTSHOPSTAFF 3 /* The number of paint shop staff working today */
+#define NCUSTOMERS 200     /* The number of customers painting today*/
+#define NPAINTSHOPSTAFF 30 /* The number of paint shop staff working today */
 

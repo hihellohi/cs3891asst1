@@ -16,6 +16,10 @@
 
 /* Declare any globals you need here (e.g. locks, etc...) */
 
+struct paintorder *buffer[NCUSTOMERS];
+struct semaphore *empty;
+struct lock *ins, *rem, *mixlocks[NCOLOURS];
+int hi, lo;
 
 /*
  * **********************************************************************
@@ -34,8 +38,19 @@
 
 void order_paint(struct paintorder *order)
 {
-        (void) order; /* Avoid compiler warning, remove when used */
-        panic("You need to write some code!!!!\n");
+		order->sem = sem_create("order", 0);
+		KASSERT(order->sem != NULL);
+
+		lock_acquire(ins);
+
+		buffer[hi++] = order;
+		hi %= NCUSTOMERS;
+		
+		V(empty);
+		lock_release(ins);
+
+		P(order->sem);
+		sem_destroy(order->sem);
 }
 
 
@@ -58,6 +73,14 @@ struct paintorder *take_order(void)
 {
         struct paintorder *ret = NULL;
 
+		lock_acquire(rem);
+		P(empty);
+		
+		ret = buffer[lo++];
+		lo %= NCUSTOMERS;
+
+		lock_release(rem);
+
         return ret;
 }
 
@@ -75,13 +98,33 @@ struct paintorder *take_order(void)
 
 void fill_order(struct paintorder *order)
 {
-
         /* add any sync primitives you need to ensure mutual exclusion
            holds as described */
+		char requested[NCOLOURS];
+		for(int i = 0; i < NCOLOURS; i++){
+			requested[i] = 0;
+		}
 
-        /* the call to mix must remain */
+		unsigned int cur;
+		for(int i = 0; i < PAINT_COMPLEXITY; i++){
+			if((cur = order->requested_tints[i]) && cur <= NCOLOURS){
+				requested[cur - 1] = 1;
+			}
+		}
+
+		for(int i = 0; i < NCOLOURS; i++){
+			if(requested[i]){
+				lock_acquire(mixlocks[i]);
+			}
+		}
+
         mix(order);
 
+		for(int i = 0; i < NCOLOURS; i++){
+			if(requested[i]){
+				lock_release(mixlocks[i]);
+			}
+		}
 }
 
 
@@ -94,8 +137,7 @@ void fill_order(struct paintorder *order)
 
 void serve_order(struct paintorder *order)
 {
-        (void) order; /* avoid a compiler warning, remove when you
-                         start */
+		V(order->sem);
 }
 
 
@@ -117,7 +159,14 @@ void serve_order(struct paintorder *order)
 
 void paintshop_open(void)
 {
-
+	empty = sem_create("empty", 0);
+	ins = lock_create("ins");
+	rem = lock_create("rem");
+	KASSERT(empty != NULL && ins != NULL && rem != NULL);
+	for(int i = 0; i < NCOLOURS; i++){
+		KASSERT((mixlocks[i] = lock_create("mixlock")) != NULL);
+	}
+	hi = lo = 0;
 }
 
 /*
@@ -129,6 +178,11 @@ void paintshop_open(void)
 
 void paintshop_close(void)
 {
-
+	sem_destroy(empty);
+	lock_destroy(ins);
+	lock_destroy(rem);
+	for(int i = 0; i < NCOLOURS; i++){
+		lock_destroy(mixlocks[i]);
+	}
 }
 

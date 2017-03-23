@@ -11,7 +11,7 @@
 static struct pc_data buffer[BUFFER_SIZE];
 struct semaphore *full;
 struct semaphore *empty;
-struct lock *mutex;
+struct lock *head, *tail;
 
 int hi, lo;
 
@@ -25,11 +25,13 @@ struct pc_data consumer_receive(void)
         struct pc_data thedata;
 
 		P(full);
-		lock_acquire(mutex);
+		lock_acquire(tail);
+		//the locks head and tail will be simultaneously be aquired iff hi != lo
 
 		thedata = buffer[lo++];
+		lo %= BUFFER_SIZE;
 
-		lock_release(mutex);
+		lock_release(tail);
 		V(empty);
 
 
@@ -42,11 +44,12 @@ struct pc_data consumer_receive(void)
 void producer_send(struct pc_data item)
 {
 		P(empty);
-		lock_acquire(mutex);
+		lock_acquire(head);
 
 		buffer[hi++] = item;
+		hi %= BUFFER_SIZE;
 
-		lock_release(mutex);
+		lock_release(head);
 		V(full);
 }
 
@@ -60,8 +63,9 @@ void producerconsumer_startup(void)
 {
 	full = sem_create("full", 0);
 	empty = sem_create("empty", BUFFER_SIZE);
-	mutex = lock_create("mutex");
-	KASSERT(full != NULL && empty != NULL && mutex != NULL);
+	head = lock_create("head");
+	tail = lock_create("tail");
+	KASSERT(full != NULL && empty != NULL && head != NULL && tail != NULL);
 	hi = lo = 0;
 }
 
@@ -70,6 +74,7 @@ void producerconsumer_shutdown(void)
 {
 	sem_destroy(full);
 	sem_destroy(empty);
-	lock_destroy(mutex);
+	lock_destroy(head);
+	lock_destroy(tail);
 }
 
