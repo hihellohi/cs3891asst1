@@ -17,7 +17,7 @@
 /* Declare any globals you need here (e.g. locks, etc...) */
 
 struct paintorder *buffer[NCUSTOMERS];
-struct semaphore *empty;
+struct semaphore *empty, *full;
 struct lock *ins, *rem, *mixlocks[NCOLOURS];
 int hi, lo;
 
@@ -42,6 +42,7 @@ void order_paint(struct paintorder *order)
 		KASSERT(order->sem != NULL);
 
 		lock_acquire(ins);
+		P(full);
 
 		buffer[hi++] = order;
 		hi %= NCUSTOMERS;
@@ -79,6 +80,7 @@ struct paintorder *take_order(void)
 		ret = buffer[lo++];
 		lo %= NCUSTOMERS;
 
+		V(full);
 		lock_release(rem);
 
         return ret;
@@ -160,6 +162,7 @@ void serve_order(struct paintorder *order)
 void paintshop_open(void)
 {
 	empty = sem_create("empty", 0);
+	full = sem_create("full", NCUSTOMERS);
 	ins = lock_create("ins");
 	rem = lock_create("rem");
 	KASSERT(empty != NULL && ins != NULL && rem != NULL);
@@ -179,6 +182,7 @@ void paintshop_open(void)
 void paintshop_close(void)
 {
 	sem_destroy(empty);
+	sem_destroy(full);
 	lock_destroy(ins);
 	lock_destroy(rem);
 	for(int i = 0; i < NCOLOURS; i++){
