@@ -16,12 +16,10 @@
 
 /* Declare any globals you need here (e.g. locks, etc...) */
 
-static struct paintorder *buffer[NCUSTOMERS];
-volatile unsigned long int counter;
-static struct lock *tint_locks[NCOLOURS];
-static struct lock *buffer_lock;
-static struct lock *mix_lock;
-static struct cv *cv_empty;
+struct paintorder *buffer[NCUSTOMERS];
+struct semaphore *empty;
+struct lock *ins, *rem, *mixlocks[NCOLOURS];
+int hi, lo;
 
 /*
  * **********************************************************************
@@ -40,18 +38,19 @@ static struct cv *cv_empty;
 
 void order_paint(struct paintorder *order)
 {
-        order->finished = sem_create("finished", 0);
-        lock_acquire(buffer_lock);
+		order->sem = sem_create("order", 0);
+		KASSERT(order->sem != NULL);
 
-        buffer[counter] = order;
-        counter++;
+		lock_acquire(ins);
 
-        cv_signal(cv_empty, buffer_lock);
+		buffer[hi++] = order;
+		hi %= NCUSTOMERS;
+		
+		V(empty);
+		lock_release(ins);
 
-        lock_release(buffer_lock);
-
-        P(order->finished);
-        sem_destroy(order->finished);
+		P(order->sem);
+		sem_destroy(order->sem);
 }
 
 
@@ -72,20 +71,17 @@ void order_paint(struct paintorder *order)
 
 struct paintorder *take_order(void)
 {
-        struct paintorder *order = NULL;
+        struct paintorder *ret = NULL;
 
-        lock_acquire(buffer_lock);
+		lock_acquire(rem);
+		P(empty);
+		
+		ret = buffer[lo++];
+		lo %= NCUSTOMERS;
 
-        while (counter == 0) {
-                cv_wait(cv_empty, buffer_lock);
-        }
+		lock_release(rem);
 
-        order = buffer[counter - 1];
-        counter--;
-
-        lock_release(buffer_lock);
-
-        return order;
+        return ret;
 }
 
 
@@ -102,28 +98,33 @@ struct paintorder *take_order(void)
 
 void fill_order(struct paintorder *order)
 {
-
         /* add any sync primitives you need to ensure mutual exclusion
            holds as described */
-        lock_acquire(mix_lock);
-        int i;
-        for (i = 0; i < PAINT_COMPLEXITY; i++) {
-            int tint = order->requested_tints[i];
-            if (tint > NCOLOURS)
-                    panic("Unknown colour");
-            if (tint > 0)
-                lock_acquire(tint_locks[tint - 1]);
-        }
-        lock_release(mix_lock);
+		char requested[NCOLOURS];
+		for(int i = 0; i < NCOLOURS; i++){
+			requested[i] = 0;
+		}
 
-        /* the call to mix must remain */
+		unsigned int cur;
+		for(int i = 0; i < PAINT_COMPLEXITY; i++){
+			if((cur = order->requested_tints[i]) && cur <= NCOLOURS){
+				requested[cur - 1] = 1;
+			}
+		}
+
+		for(int i = 0; i < NCOLOURS; i++){
+			if(requested[i]){
+				lock_acquire(mixlocks[i]);
+			}
+		}
+
         mix(order);
 
-        for (i = 0; i < PAINT_COMPLEXITY; i++) {
-            int tint = order->requested_tints[i];
-            if (tint > 0)
-                lock_release(tint_locks[tint - 1]);
-        }
+		for(int i = 0; i < NCOLOURS; i++){
+			if(requested[i]){
+				lock_release(mixlocks[i]);
+			}
+		}
 }
 
 
@@ -136,7 +137,7 @@ void fill_order(struct paintorder *order)
 
 void serve_order(struct paintorder *order)
 {
-        V(order->finished);
+		V(order->sem);
 }
 
 
@@ -158,30 +159,14 @@ void serve_order(struct paintorder *order)
 
 void paintshop_open(void)
 {
-        cv_empty = cv_create("cv_empty");
-        if (cv_empty == NULL) {
-                panic("cv_empty create failed");
-        }
-
-        int i;
-        for (i = 0; i < NCOLOURS; i++) {
-            struct lock *tint_lock = lock_create("tint_lock");
-            if (tint_lock == NULL) {
-                    panic("tint_lock create failed");
-            }
-            tint_locks[i] = tint_lock;
-        }
-
-        buffer_lock = lock_create("buffer_lock");
-        if (buffer_lock == NULL) {
-                panic("buffer_lock create failed");
-        }
-
-        mix_lock = lock_create("mix_lock");
-        if (mix_lock == NULL) {
-                panic("mix_lock create failed");
-        }
-        counter = 0;
+	empty = sem_create("empty", 0);
+	ins = lock_create("ins");
+	rem = lock_create("rem");
+	KASSERT(empty != NULL && ins != NULL && rem != NULL);
+	for(int i = 0; i < NCOLOURS; i++){
+		KASSERT((mixlocks[i] = lock_create("mixlock")) != NULL);
+	}
+	hi = lo = 0;
 }
 
 /*
@@ -193,12 +178,11 @@ void paintshop_open(void)
 
 void paintshop_close(void)
 {
-        cv_destroy(cv_empty);
-        int i;
-        for (i = 0; i < NCOLOURS; i++) {
-            lock_destroy(tint_locks[i]);
-        }
-        lock_destroy(buffer_lock);
-        lock_destroy(mix_lock);
+	sem_destroy(empty);
+	lock_destroy(ins);
+	lock_destroy(rem);
+	for(int i = 0; i < NCOLOURS; i++){
+		lock_destroy(mixlocks[i]);
+	}
 }
 

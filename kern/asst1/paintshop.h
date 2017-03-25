@@ -19,7 +19,8 @@ struct paintorder {
         struct paintcan can;                            /* Do not change */
 
         /* This struct can be extended with your own entries below here */ 
-        struct semaphore *finished;
+		struct semaphore *sem;
+
 };
 
 #endif

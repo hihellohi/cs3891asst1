@@ -36,6 +36,14 @@ static struct lock *cust_lock;
 /* A function used to manage staff leaving */
 
 static void go_home(void);
+static unsigned long long seed = 20382;
+
+static unsigned int rand(){
+	seed *= 104729;
+	seed += 120324;
+	seed %= 1000000007;
+	return (int)seed;
+}
 
 /*
  * **********************************************************************
@@ -74,22 +82,7 @@ static void customer(void *unusedpointer, unsigned long customernum)
 
                 /* erase ingredients list on can and select a colour in terms of tints */
                 for (j = 0; j < PAINT_COMPLEXITY; j++) {
-                        order.requested_tints[j] = 0;
-                }
-                if (i % 3 == 0) {
-                    order.requested_tints[0] = RED;
-                    order.requested_tints[1] = BLUE;
-                    order.requested_tints[2] = ORANGE;
-                }
-                else if (i % 3 == 1) {
-                    order.requested_tints[0] = MAGENTA;
-                    order.requested_tints[1] = RED;
-                    order.requested_tints[2] = BROWN;
-                }
-                else if (i % 3 == 2) {
-                    order.requested_tints[0] = MAGENTA;
-                    order.requested_tints[1] = BLUE;
-                    order.requested_tints[2] = RED;
+                        order.requested_tints[j] = rand() % (NCOLOURS + 1);
                 }
 
 
