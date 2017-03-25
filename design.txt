@@ -3,7 +3,7 @@ The problem that needed to be solved in this question is the race
 condition on lines 82-85 where the shared resource, counter, is being
 compared and incremented. To fix this, all we need to do is put a lock
 around the critical section, namely on lines 82 and 85. However, since
-the lock is being released inside an if block, we must also relase the
+the lock is being released inside an if block, we must also release the
 lock at the start the corresponding else block.
 
 Q2
@@ -12,7 +12,7 @@ by ordering the resources:
 1. lock a 
 2. lock b
 
-The problem occurs when bill acquires lock a, then ben aquires lock b.
+The problem occurs when bill acquires lock a, then ben acquires lock b.
 Now bill tries to acquire lock b while ben tries to acquire lock a, and a
 deadlock occurs.
 
@@ -42,7 +42,7 @@ occurs with multiple consumers.
 
 We solve the problem with semaphores and locks. 
 
-We use two semaphores - "full" and "empty" and initialize
+We use two semaphores - "full" and "empty" and initialise
 empty to n and full to 0. 
 
 Two locks called head and tail provide mutual exclusion for multiple producers 
@@ -65,7 +65,7 @@ Producer:
 Consumer:
 		P(full);
 		lock_acquire(tail);
-        // pop off quue
+        // pop off queue
 		lock_release(tail);
 		V(empty);
 
@@ -84,15 +84,15 @@ we can omit the full semaphore.
 
 The second problem is to block producer threads after they have created
 a task and to unblock them after that particular task has been completed
-by a consumer (staff). To acheive this, we modify the paintorder data
+by a consumer (staff). To achieve this, we modify the paintorder data
 structure such that it contains a semaphore. This way, each task on
-the buffer will have an attatched semaphore which can be used to signal
-to the producer of the task to unblock. To do this, we initialize the
+the buffer will have an attached semaphore which can be used to signal
+to the producer of the task to unblock. To do this, we initialise the
 semaphore with a value of 0 for each task before pushing it into the
 buffer. We then call wait on that semaphore, blocking the thread. It is
 important to do this after releasing the insert lock, otherwise no new
 threads will be able to push into the buffer. After finishing the task,
-we signal the semaphore attatched to it to unblock the thread.
+we signal the semaphore attached to it to unblock the thread.
 
 The last problem is to provide each thread exclusive access to the
 required tints when mixing. Here the critical section is the mix method
@@ -107,5 +107,5 @@ in no particular order, we run the risk of deadlock. Additionally, since
 a colour may appear more than once in an order, we also may attempt
 to acquire a lock we already hold. To solve both of these problems,
 we perform a modified radix sort on the requested colours on lines
-163-113. This causes locks to be aquired in a strict order, preventing
+163-113. This causes locks to be acquired in a strict order, preventing
 the possibility of a deadlock since this follows resource ordering.
