@@ -1,7 +1,48 @@
-Q1
+Q1 
+The problem that needed to be solved in this question is the race
+condition on lines 82-85 where the shared resource, counter, is being
+compared and incremented. To fix this, all we need to do is put a lock
+around the critical section, namely on lines 82 and 85. However, since
+the lock is being released inside an if block, we must also relase the
+lock at the start the corresponding else block.
 
 Q2
 
 Q3
 
-Q4
+Q4 
+There are three separate problems to this question. The first is
+the producer-consumer problem, discussed above. For this problem,
+every producer (customer) thread will be blocked when it makes a task,
+only being unblocked after that task has been completed and removed
+from the buffer. Hence, there is at most NCUSTOMERS many tasks in the
+buffer at any one time. Thus, if we set the buffer size to NCUSTOMERS,
+we can omit the full semaphore.
+
+The second problem is to block producer threads after they have created
+a task and to unblock them after that particular task has been completed
+by a consumer (staff). To acheive this, we modify the paintorder data
+structure such that it contains a semaphore. This way, each task on
+the buffer will have an attatched semaphore which can be used to signal
+to the producer of the task to unblock. To do this, we initialize the
+semaphore with a value of 0 for each task before pushing it into the
+buffer. We then call wait on that semaphore, blocking the thread. It is
+important to do this after releasing the insert lock, otherwise no new
+threads will be able to push into the buffer. After finishing the task,
+we signal the semaphore attatched to it to unblock the thread.
+
+The last problem is to provide each thread exclusive access to the
+required tints when mixing. Here the critical section is the mix method
+and the shared resource is the array of used tints. However, we can
+allow threads with disjoint orders to simultaneously mix as each colour
+of tint has its own array index. To do this, we keep an array of locks
+of size NCOLOURS with each lock corresponding to a colour. Each thread
+must acquire the locks corresponding to each colour in its order before
+calling mix and releasing them afterwards. This is implemented in lines
+115-119 and 123-127 respectively. However, since we are acquiring locks
+in no particular order, we run the risk of deadlock. Additionally, since
+a colour may appear more than once in an order, we also may attempt
+to acquire a lock we already hold. To solve both of these problems,
+we perform a modified radix sort on the requested colours on lines
+163-113. This causes locks to be aquired in a strict order, preventing
+the possibility of a deadlock since this follows resource ordering.
