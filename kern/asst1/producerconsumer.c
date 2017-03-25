@@ -13,7 +13,7 @@ struct semaphore *full;
 struct semaphore *empty;
 struct lock *head, *tail;
 
-int hi, lo;
+int put, pop;
 
 
 /* consumer_receive() is called by a consumer to request more data. It
@@ -26,10 +26,10 @@ struct pc_data consumer_receive(void)
 
 		P(full);
 		lock_acquire(tail);
-		//the locks head and tail will be simultaneously be aquired iff hi != lo
+		//the locks head and tail will be simultaneously be aquired iff put != pop
 
-		thedata = buffer[lo++];
-		lo %= BUFFER_SIZE;
+		thedata = buffer[pop++];
+		pop %= BUFFER_SIZE;
 
 		lock_release(tail);
 		V(empty);
@@ -46,8 +46,8 @@ void producer_send(struct pc_data item)
 		P(empty);
 		lock_acquire(head);
 
-		buffer[hi++] = item;
-		hi %= BUFFER_SIZE;
+		buffer[put++] = item;
+		put %= BUFFER_SIZE;
 
 		lock_release(head);
 		V(full);
@@ -66,7 +66,7 @@ void producerconsumer_startup(void)
 	head = lock_create("head");
 	tail = lock_create("tail");
 	KASSERT(full != NULL && empty != NULL && head != NULL && tail != NULL);
-	hi = lo = 0;
+	put = pop = 0;
 }
 
 /* Perform any clean-up you need here */

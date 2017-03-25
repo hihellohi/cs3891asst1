@@ -1,7 +1,70 @@
 Q1
 
 Q2
+The problem is deadlock. We solve it by removing the circular wait condition
+by ordering the resources:
+1. lock a 
+2. lock b
+
+The problem occurs when bill acquires lock a, then ben aquires lock b.
+Now bill tries to acquire lock b while ben tries to acquire lock a, and a
+deadlock occurs.
+
+There are no shared data structures.
+The critical section is supposed to be the inside section when
+both locks are held:
+
+                lock_acquire(locka);
+                lock_acquire(lockb);
+
+                /* Ben now holds both locks and can do what ever bill
+                   needs to do while holding the locks (nothing in
+                   reality) */
+                (void) unusedpointer;
+                (void) unusedint;
+
+                lock_release(locka);
+                lock_release(lockb);
+
+Although in reality there is no actual code inside the critical section.
 
 Q3
+The problem is the shared buffer data structure we use to put data on and
+and off. If say, two producers attempt to place an item onto the buffer at the 
+same time, we may end up only placing one item instead. A similar problem
+occurs with multiple consumers.
+
+We solve the problem with semaphores and locks. 
+
+We use two semaphores - "full" and "empty" and initialize
+empty to n and full to 0. 
+
+Two locks called head and tail provide mutual exclusion for multiple producers 
+and multiple consumers respectively.
+
+Our producer/consumer will act as a FIFO queue and hence uses 
+"put" and "pop" variables to track the next location to put and pop
+from the queue respectively. As a result, except when the queue is full or 
+empty, the critical sections of the producer and consumer are disjoint.
+
+The cases where the queue is full/empty are handled by the semaphores.
+The semaphores also allow threads to be put to sleep when they cannot be used.
+
+Producer:
+		P(empty);
+		lock_acquire(head);
+        // put onto queue
+		lock_release(head);
+		V(full);
+Consumer:
+		P(full);
+		lock_acquire(tail);
+        // pop off quue
+		lock_release(tail);
+		V(empty);
+
+
+The critical sections are when we access or modify the buffer i.e when
+we put and pop the queue.
 
 Q4
